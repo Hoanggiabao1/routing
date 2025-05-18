@@ -15,92 +15,95 @@ import copy
 MAXIMUM = float('inf')
 
 class DVrouter(Router):
-    """Triển khai giao thức định tuyến Distance Vector (DV).
+    """Distance vector routing protocol implementation.
 
-    Thêm các trường lớp và mã khởi tạo (ví dụ: để tạo bảng chuyển tiếp).
-    Xem lớp cơ sở `Router` để biết chi tiết về các phương thức cần ghi đè.
+    Add your own class fields and initialization code (e.g. to create forwarding table
+    data structures). See the `Router` base class for docstrings of the methods to
+    override.
     """
 
     def __init__(self, addr, heartbeat_time):
-        Router.__init__(self, addr)  # Khởi tạo lớp cơ sở - KHÔNG ĐƯỢC XÓA
-        self.heartbeat_time = heartbeat_time  # Thời gian giữa các lần gửi heartbeat
-        self.last_time = 0  # Thời gian lần cuối gửi heartbeat
+        Router.__init__(self, addr) # Initialize base class - DO NOT REMOVE
+        self.heartbeat_time = heartbeat_time 
+        self.last_time = 0  
         
-        # Khởi tạo các cấu trúc dữ liệu
-        self.neighbors = {}        # Từ cổng -> (địa chỉ hàng xóm, chi phí liên kết)
-        self.dv = {addr: (0, addr)}  # Từ đích -> (chi phí, bước nhảy tiếp theo)
-        self.neighbor_dvs = {}     # Từ địa chỉ hàng xóm -> {đích: chi phí}
-        self.forwarding_table = {} # Từ đích -> cổng chuyển tiếp
+        # TODO
+        #   add your own class fields and initialization code here
+
+        self.neighbors = {}             # Từ cổng -> (địa chỉ hàng xóm, chi phí link)
+        self.dv = {addr: (0, addr)}     # Từ đích -> (chi phí, bước nhảy tiếp theo)
+        self.neighbor_dvs = {}          # Từ địa chỉ hàng xóm -> {đích: chi phí}
+        self.forwarding_table = {}      # Từ đích -> cổng chuyển tiếp
 
     def handle_packet(self, port, packet):
-        """Xử lý gói tin đến."""
+        """Process incoming packet."""
+        # TODO
         if packet.is_traceroute:
-            # Xử lý gói tin traceroute (dữ liệu thông thường)
+            # Chuyển tiếp các gói traceroute bằng forwarding table
             dst = packet.dst_addr
             if dst in self.forwarding_table:
-                out_port = self.forwarding_table[dst]  # Lấy cổng từ bảng chuyển tiếp
-                self.send(out_port, packet)  # Gửi gói tin qua cổng tương ứng
+                out_port = self.forwarding_table[dst]  # Lấy cổng từ forwarding table
+                self.send(out_port, packet)  # Gửi packet qua cổng tương ứng
         else:
-            # Xử lý gói tin định tuyến (cập nhật vector khoảng cách)
             try:
-                received_dv = json.loads(packet.content)  # Giải mã nội dung gói tin
+                received_dv = json.loads(packet.content)  # Giải mã nội dung packet
             except:
-                return  # Bỏ qua nếu gói tin không hợp lệ
+                return  # Bỏ qua
 
             src = packet.src_addr
-            self.neighbor_dvs[src] = received_dv  # Lưu vector khoảng cách của hàng xóm
+            self.neighbor_dvs[src] = received_dv  # Lưu distance vector của hàng xóm
 
-            # Tính lại vector khoảng cách và cập nhật nếu cần
+            # Tính lại distance vector
             changed = self._recompute_dv()
             if changed:
-                self._update_forwarding_table()  # Cập nhật bảng chuyển tiếp
-                self._broadcast_dv()  # Phát tán vector khoảng cách mới
+                self._update_forwarding_table()  # Cập nhật forwarding table
+                self._broadcast_dv()  # Phát tán distance vector mới
 
     def handle_new_link(self, port, endpoint, cost):
-        """Xử lý liên kết mới được thêm."""
-        # Lưu thông tin liên kết mới
+        """Handle new link."""
+        # Lưu thông tin link mới
         self.neighbors[port] = (endpoint, cost)
 
-        # Cập nhật vector khoảng cách nếu liên kết này cung cấp đường đi tốt hơn
+        # Cập nhật distance vector nếu link này cung cấp đường đi tốt hơn
         if endpoint not in self.dv or cost < self.dv[endpoint][0]:
             self.dv[endpoint] = (cost, endpoint)
 
-        # Đảm bảo hàng xóm có mục trong neighbor_dvs
+        # Đảm bảo hàng xóm có trong neighbor_dvs
         if endpoint not in self.neighbor_dvs:
             self.neighbor_dvs[endpoint] = {}
 
-        # Tính lại vector khoảng cách và cập nhật nếu cần
+        # Tính lại distance vector
         changed = self._recompute_dv()
         if changed:
-            self._update_forwarding_table()  # Cập nhật bảng chuyển tiếp
-            self._broadcast_dv()  # Phát tán vector khoảng cách mới
+            self._update_forwarding_table()  # Cập nhật forwarding table
+            self._broadcast_dv()  # Phát tán distance vector mới
 
     def handle_remove_link(self, port):
-        """Xử lý liên kết bị xóa."""
+        """Handle removed link."""
         if port in self.neighbors:
             neighbor_addr, _ = self.neighbors[port]
 
-            # Xóa hàng xóm và vector khoảng cách của họ
+            # Xóa hàng xóm và distance vector của họ
             del self.neighbors[port]
             if neighbor_addr in self.neighbor_dvs:
                 del self.neighbor_dvs[neighbor_addr]
 
-            # Tính lại vector khoảng cách và cập nhật nếu cần
+            # Tính lại distance vector
             changed = self._recompute_dv()
             if changed:
-                self._update_forwarding_table()  # Cập nhật bảng chuyển tiếp
-                self._broadcast_dv()  # Phát tán vector khoảng cách mới
+                self._update_forwarding_table()  # Cập nhật forwarding table
+                self._broadcast_dv()  # Phát tán distance vector mới
 
     def handle_time(self, time_ms):
-        """Xử lý thời gian hiện tại."""
+        """Handle current time."""
         if time_ms - self.last_time >= self.heartbeat_time:
             self.last_time = time_ms
-            # Phát tán vector khoảng cách định kỳ
+            # Phát tán distance vector định kì
             self._broadcast_dv()
 
     def _broadcast_dv(self):
-        """Phát tán vector khoảng cách tới tất cả hàng xóm."""
-        # Chuẩn bị vector khoảng cách để gửi
+        """Phát tán distance vector tới tất cả hàng xóm."""
+        # Chuẩn bị distance vector để gửi
         dv_to_send = {}
         for dest in self.dv:
             cost, _ = self.dv[dest]
@@ -108,7 +111,7 @@ class DVrouter(Router):
 
         content = json.dumps(dv_to_send)  # Chuyển thành JSON
 
-        # Gửi vector khoảng cách tới từng hàng xóm
+        # Gửi distance vector tới từng hàng xóm
         for port in self.neighbors:
             neighbor_addr, _ = self.neighbors[port]
             pkt = Packet(Packet.ROUTING, self.addr, neighbor_addr, content)
@@ -154,13 +157,13 @@ class DVrouter(Router):
             if best_cost < MAXIMUM:
                 new_dv[dest] = (best_cost, best_next)
 
-        # Kiểm tra xem vector khoảng cách có thay đổi không
+        # Kiểm tra xem distance vector có thay đổi không
         changed = (new_dv != self.dv)
         self.dv = new_dv
         return changed
 
     def _update_forwarding_table(self):
-        """Cập nhật bảng chuyển tiếp dựa trên vector khoảng cách hiện tại."""
+        """Cập nhật forwarding table dựa trên distance vector hiện tại."""
         self.forwarding_table = {}
 
         for dest in self.dv:
@@ -175,16 +178,16 @@ class DVrouter(Router):
                     break
 
     def __repr__(self):
-        """Biểu diễn thông tin router để debug trong trình mô phỏng mạng."""
+        """Representation for debugging in the network visualizer."""
         lines = []
         lines.append("DVrouter(addr=" + self.addr + ")")
 
-        lines.append("\nVector Khoảng Cách:")
+        lines.append("\ndistance vector:")
         for dest in sorted(self.dv):
             cost, nhop = self.dv[dest]
             lines.append("  Đích: " + dest + ", Chi Phí: " + str(cost) + ", Bước Nhảy Tiếp Theo: " + nhop)
 
-        lines.append("\nBảng Chuyển Tiếp:")
+        lines.append("\nforwarding table:")
         for dest in sorted(self.forwarding_table):
             port = self.forwarding_table[dest]
             lines.append("  Đích: " + dest + ", Cổng Ra: " + str(port))
