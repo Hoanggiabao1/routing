@@ -48,7 +48,7 @@ class DVrouter(Router):
             try:
                 received_dv = json.loads(packet.content)  # Giải mã nội dung packet
             except:
-                return  # Bỏ qua
+                return  # Bỏ qua nếu không hợp lệ
 
             src = packet.src_addr
             self.neighbor_dvs[src] = received_dv  # Lưu distance vector của hàng xóm
@@ -102,7 +102,6 @@ class DVrouter(Router):
             self._broadcast_dv()
 
     def _broadcast_dv(self):
-        """Phát tán distance vector tới tất cả hàng xóm."""
         # Chuẩn bị distance vector để gửi
         dv_to_send = {}
         for dest in self.dv:
@@ -118,7 +117,6 @@ class DVrouter(Router):
             self.send(port, pkt)
 
     def _recompute_dv(self):
-        """Tính lại các đường đi tốt nhất bằng thuật toán Bellman-Ford."""
         new_dv = {self.addr: (0, self.addr)}  # Khởi tạo với chính router này
 
         # Tập hợp tất cả các đích có thể đến
@@ -163,7 +161,6 @@ class DVrouter(Router):
         return changed
 
     def _update_forwarding_table(self):
-        """Cập nhật forwarding table dựa trên distance vector hiện tại."""
         self.forwarding_table = {}
 
         for dest in self.dv:
